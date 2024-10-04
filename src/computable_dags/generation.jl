@@ -114,7 +114,7 @@ function ComputableDAGs.input_expr(
                                 $(vp.in_particle_contributions),
                                 $(vp.out_particle_contributions)
                               ),
-                              Ref($psp_symbol)
+                              $psp_symbol
                           )")
     else
         throw(InvalidInputError("failed to parse node name \"$name\""))
@@ -124,16 +124,14 @@ end
 function ComputableDAGs.input_type(p::AbstractProcessDefinition)
     # TODO correctly assemble abstract types here
     # See https://github.com/QEDjl-project/QEDFeynmanDiagrams.jl/issues/29
-    return Any
     in_t = QEDcore._assemble_tuple_type(incoming_particles(p), Incoming(), SFourMomentum)
     out_t = QEDcore._assemble_tuple_type(outgoing_particles(p), Outgoing(), SFourMomentum)
-    return PhaseSpacePoint{
+    return AbstractPhaseSpacePoint{
         typeof(p),
-        PerturbativeQED,
-        PhasespaceDefinition{SphericalCoordinateSystem,ElectronRestFrame},
+        <:AbstractModelDefinition,
+        <:AbstractPhasespaceDefinition,
         Tuple{in_t...},
         Tuple{out_t...},
-        SFourMomentum,
     }
 end
 
