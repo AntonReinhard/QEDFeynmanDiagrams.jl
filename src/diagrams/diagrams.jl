@@ -785,6 +785,18 @@ function _feynman_diagrams(in_particles::Tuple, out_particles::Tuple)
     )
 end
 
+@inline _count_particles(::Tuple{}, ::Tuple{}, species) = 0
+@inline function _count_particles(
+    parts::Tuple{SPECIES,Vararg}, bools::Tuple{Bool,Vararg}, species::SPECIES
+) where {SPECIES}
+    return (bools[1] ? 1 : 0) + _count_particles(parts[2:end], bools[2:end], species)
+end
+@inline function _count_particles(
+    parts::Tuple{SPECIES1,Vararg}, bools::Tuple{Bool,Vararg}, species::SPECIES2
+) where {SPECIES1,SPECIES2}
+    return 0 + _count_particles(parts[2:end], bools[2:end], species)
+end
+
 # use a small LRU maxsize since these vectors could get large
 @memoize LRU(maxsize=3) function virtual_particles(
     proc::PROC
@@ -792,13 +804,66 @@ end
     I = number_incoming_particles(proc)
     O = number_outgoing_particles(proc)
 
+    total_electrons =
+        number_particles(proc, Incoming(), Electron()) +
+        number_particles(proc, Outgoing(), Positron())
+
     SPECIFIC_VP = VirtualParticle{PROC,NTuple{I,Bool},NTuple{O,Bool}}
     # use a set for deduplication
-    particles = Set{SPECIFIC_VP}()
-    for fd in feynman_diagrams(proc)
-        push!(particles, virtual_particles(proc, fd)...)
-    end
+    particles = SPECIFIC_VP[]
 
-    # convert to vector
-    return SPECIFIC_VP[particles...]
+    in_p = incoming_particles(proc)
+    out_p = outgoing_particles(proc)
+
+    for (in_contribs, out_contribs) in Iterators.product(
+        Iterators.product(ntuple(_ -> (false, true), I)...),
+        Iterators.product(ntuple(_ -> (false, true), O)...),
+    )
+        # check whether the contributions make a valid particle
+        electrons =
+            _count_particles(in_p, in_contribs, Electron()) +
+            _count_particles(out_p, out_contribs, Positron())
+        positrons =
+            _count_particles(in_p, in_contribs, Positron()) +
+            _count_particles(out_p, out_contribs, Electron())
+        photons =
+            _count_particles(in_p, in_contribs, Photon()) +
+            _count_particles(out_p, out_contribs, Photon())
+
+        # sort out invalid combinations
+        if electrons + positrons + photons <= 1
+            continue
+        elseif electrons + positrons + photons > (I + O) / 2
+            continue
+        elseif electrons + positrons + photons == (I + O) / 2 && in_contribs[1] == false
+            # break symmetry in the same way that normalize would
+            continue
+        end
+
+        # infer the species type
+        local species::Type
+        if electrons - positrons == 1
+            # regardless of number of photons, one electron "leftover" means the result is a electron
+            species = Electron
+        elseif positrons - electrons == 1
+            # regardless of number of photons, one positron "leftover" means the result is a positron
+            species = Positron
+        elseif electrons == positrons
+            if electrons == 0 && photons > 1
+                # multiple photons cannot interact without an electron or positron
+                continue
+            end
+            if electrons == total_electrons
+                # cannot "use up" all electrons and have photons leftover
+                continue
+            end
+
+            species = Photon
+        else
+            continue
+        end
+
+        push!(particles, SPECIFIC_VP(proc, species(), in_contribs, out_contribs))
+    end
+    return particles
 end
