@@ -98,7 +98,7 @@ function ComputableDAGs.input_expr(
 
         return Meta.parse(
             "QEDFeynmanDiagrams.BaseStateInput(
-                ParticleStateful($dir_str, $species_str, momentum($psp_symbol, $dir_str, $species_str, $index)),
+                ParticleStateful($dir_str, $species_str, momentum($psp_symbol, $dir_str, $species_str, Val($index))),
                 $sp_str,
             )",
         )
@@ -368,8 +368,12 @@ end
 
 Generate and return a [`ComputableDAGs.DAG`](@extref), representing the computation for the squared matrix element of this scattering process, summed over spin and polarization combinations allowed by the process.
 """
-function generate_DAG(proc::AbstractProcessDefinition)
-    particles = virtual_particles(proc)                  # virtual particles that will be input to propagator tasks
+function generate_DAG(proc::PROC) where {PROC<:AbstractProcessDefinition}
+    I = number_incoming_particles(proc)
+    O = number_outgoing_particles(proc)
+    SPECIFIC_VP = VirtualParticle{PROC,NTuple{I,Bool},NTuple{O,Bool}}
+    particles::Vector{SPECIFIC_VP} = virtual_particles(proc)                  # virtual particles that will be input to propagator tasks
+
     # TODO apparently this sort is deprecated, change it
     pairs = sort(particle_pairs(particles))              # pairs to generate the pair tasks
     triples = sort(total_particle_triples(particles))    # triples to generate the triple tasks
