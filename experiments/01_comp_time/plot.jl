@@ -39,13 +39,6 @@ SCATTERING_PROCESSES = [
 ]
 
 with_theme(theme_latexfonts()) do
-    #include("plotting/graph_gen.jl")
-    #include("plotting/f_gen.jl")
-    #include("plotting/f_exec.jl")
-    #include("plotting/f_exec_per_line.jl")
-    #include("plotting/f_gen_per_line.jl")
-    #include("plotting/graph_size.jl")
-    #include("plotting/graph_size_w_ratio.jl")
-    include("plotting/compile_time.jl")
-    #include("plotting/gen_total.jl")
+    #include("plotting/compile_time.jl")
+    include("plotting/compile_time_to_lines.jl")
 end

@@ -50,12 +50,13 @@ function make_nphoton_compton(n::Int)
         (Electron(), Photon()),
         (Electron(), ntuple(_ -> Photon(), n)...),
     )
-
 end
 
 MODEL = PerturbativeQED()
 IN_PSL = ComptonRestSystem()
 PSL = FlatPhaseSpaceLayout(IN_PSL)
+
+return 0
 
 SCATTERING_PROCESSES = [
     (make_nphoton_compton(1), "ke->ke"),
@@ -63,7 +64,32 @@ SCATTERING_PROCESSES = [
     (make_nphoton_compton(3), "ke->kkke"),
     (make_nphoton_compton(4), "ke->kkkke"),
     (make_nphoton_compton(5), "ke->kkkkke"),
-    (make_nphoton_compton(6), "ke->kkkkkke"),
+    (
+        ScatteringProcess(
+            (Electron(), Positron()),
+            (Electron(), Positron()),
+        ), "ep->ep",
+    ),
+    (
+        ScatteringProcess(
+            (Electron(), Positron()),
+            (Electron(), Positron(), Electron(), Positron()),
+        ), "ep->epep",
+    ),
+    (
+        ScatteringProcess(
+            (Electron(), Positron()),
+            (Electron(), Positron(), Photon()),
+        ), "ep->epk",
+    ),
+    (
+        ScatteringProcess(
+            (Electron(), Positron()),
+            (Electron(), Positron(), Photon(), Photon()),
+        ), "ep->epkk",
+    ),
+
+    #(make_nphoton_compton(6), "ke->kkkkkke"),
 ]
 
 SUITE = BenchmarkGroup()
@@ -99,9 +125,9 @@ for (INSTANCE, INSTANCE_STR) in SCATTERING_PROCESSES
         tuple((rand(SFourMomentum) for _ in 1:number_outgoing_particles(INSTANCE))...),
     )
 
-    func = compute_function(g, INSTANCE, cpu_st(), @__MODULE__; closures_size = 0, concrete_input_type = typeof(psp))
+    func = compute_function(g, INSTANCE, cpu_st(), @__MODULE__)
 
-    SUITE["f_gen"][INSTANCE_STR] = @benchmarkable compute_function(g_, proc, machine, @__MODULE__; closures_size = 0) setup = (
+    SUITE["f_gen"][INSTANCE_STR] = @benchmarkable compute_function(g_, proc, machine, @__MODULE__) setup = (
         g_ = $g; proc = $INSTANCE; machine = cpu_st(); GC.gc()
     )
 
@@ -117,11 +143,11 @@ for (INSTANCE, INSTANCE_STR) in SCATTERING_PROCESSES
                 tuple((rand(SFourMomentum) for _ in 1:number_incoming_particles($INSTANCE))...),
                 tuple((rand(SFourMomentum) for _ in 1:number_outgoing_particles($INSTANCE))...),
             )
-            f = compute_function($g, $INSTANCE, cpu_st(), @__MODULE__; closures_size = 0, concrete_input_type = typeof(p))
+            f = compute_function($g, $INSTANCE, cpu_st(), @__MODULE__)
         end,
     )
     println("collected $(length(comp_times[INSTANCE_STR])) compile time samples")
-
+    #=
     comp_times_closures[INSTANCE_STR] = bench_compilation(
         :(f(p));
         setup = quote
@@ -137,10 +163,10 @@ for (INSTANCE, INSTANCE_STR) in SCATTERING_PROCESSES
             f = compute_function($g, $INSTANCE, cpu_st(), @__MODULE__; closures_size = 1000, concrete_input_type = typeof(p))
         end,
     )
-    println("collected $(length(comp_times_closures[INSTANCE_STR])) compile time samples")
+    println("collected $(length(comp_times_closures[INSTANCE_STR])) compile time samples")=#
 end
 
-result = run(SUITE; verbose = true)
+#result = run(SUITE; verbose = true)
+#BenchmarkTools.save("$(@__DIR__)/data/bench.json", result)
 
-BenchmarkTools.save("$(@__DIR__)/data/bench.json", result)
-@save "$(@__DIR__)/data/bench.jld2" result graph_props node_dicts comp_times comp_times_closures
+@save "$(@__DIR__)/data/bench.jld2" graph_props node_dicts comp_times comp_times_closures
